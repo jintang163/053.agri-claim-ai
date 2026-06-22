@@ -56,6 +56,18 @@ const routes = [
         meta: { title: '定损详情', icon: 'Document' }
       },
       {
+        path: 'drone/plan',
+        name: 'DronePlan',
+        component: () => import('@/views/drone/flightPlan.vue'),
+        meta: { title: '航线规划', icon: 'Promotion' }
+      },
+      {
+        path: 'drone/monitor/:id',
+        name: 'DroneMonitor',
+        component: () => import('@/views/drone/flightMonitor.vue'),
+        meta: { title: '飞行监控', icon: 'Cpu', hidden: true }
+      },
+      {
         path: 'system/user',
         name: 'SystemUser',
         component: () => import('@/views/system/user.vue'),

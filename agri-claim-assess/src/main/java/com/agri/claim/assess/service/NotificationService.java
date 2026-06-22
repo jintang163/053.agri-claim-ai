@@ -84,4 +84,37 @@ public class NotificationService {
     public int getOnlineUserCount() {
         return wsHandler.getOnlineCount();
     }
+
+    public void notifyDroneStatus(Long userId, Long taskId, Map<String, Object> status) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("type", "DRONE_STATUS");
+        payload.put("taskId", taskId);
+        payload.put("payload", status);
+        payload.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        boolean sent = wsHandler.sendToUser(userId, payload);
+        log.debug("推送无人机状态 | userId: {} | taskId: {} | 电量: {}% | sent: {}",
+                userId, taskId, status.get("batteryPercent"), sent);
+    }
+
+    public void notifyFlightStatus(Long userId, Long taskId, String status, String message) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("type", "FLIGHT_STATUS");
+        payload.put("taskId", taskId);
+        payload.put("status", status);
+        payload.put("message", message);
+        payload.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        boolean sent = wsHandler.sendToUser(userId, payload);
+        log.info("推送飞行状态变更 | userId: {} | taskId: {} | status: {} | sent: {}",
+                userId, taskId, status, sent);
+    }
+
+    public void broadcastDroneStatus(Long taskId, Map<String, Object> status) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("type", "DRONE_STATUS_BROADCAST");
+        payload.put("taskId", taskId);
+        payload.put("payload", status);
+        payload.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        wsHandler.broadcast(payload);
+        log.debug("广播无人机状态 | taskId: {} | 在线: {}", taskId, wsHandler.getOnlineCount());
+    }
 }

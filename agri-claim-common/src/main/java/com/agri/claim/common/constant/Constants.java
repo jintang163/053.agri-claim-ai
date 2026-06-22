@@ -83,4 +83,16 @@ public class Constants {
     public static final String DICT_TYPE_CROP = "crop_type";
     public static final String DICT_TYPE_DISASTER = "disaster_type";
     public static final String DICT_TYPE_INSURANCE = "insurance_type";
+
+    public static final String FLIGHT_STATUS_PENDING = "PENDING";
+    public static final String FLIGHT_STATUS_READY = "READY";
+    public static final String FLIGHT_STATUS_FLYING = "FLYING";
+    public static final String FLIGHT_STATUS_PAUSED = "PAUSED";
+    public static final String FLIGHT_STATUS_RETURNING = "RETURNING";
+    public static final String FLIGHT_STATUS_LANDING = "LANDING";
+    public static final String FLIGHT_STATUS_COMPLETED = "COMPLETED";
+    public static final String FLIGHT_STATUS_FAILED = "FAILED";
+    public static final String FLIGHT_STATUS_CANCELED = "CANCELED";
+
+    public static final String TASK_NO_PREFIX = "DRT";
 }
