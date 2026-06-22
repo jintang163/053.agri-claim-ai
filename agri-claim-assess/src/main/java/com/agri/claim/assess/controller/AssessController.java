@@ -3,6 +3,7 @@ package com.agri.claim.assess.controller;
 import com.agri.claim.assess.dto.AssessMissionDTO;
 import com.agri.claim.assess.entity.AssessDetail;
 import com.agri.claim.assess.entity.AssessMission;
+import com.agri.claim.assess.mapper.AssessDetailMapper;
 import com.agri.claim.assess.service.AssessService;
 import com.agri.claim.common.core.page.PageResult;
 import com.agri.claim.common.result.R;
@@ -30,6 +31,41 @@ import java.util.Map;
 public class AssessController {
 
     private final AssessService assessService;
+    private final AssessDetailMapper detailMapper;
+
+    @Operation(summary = "修正地块受灾边界")
+    @PutMapping("/detail/{id}/boundary")
+    public R<AssessDetail> updateBoundary(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
+        AssessDetail detail = detailMapper.selectById(id);
+        if (detail == null) return R.fail("明细不存在");
+        String polygonWkt = body.get("polygonWkt");
+        if (polygonWkt != null && !polygonWkt.isBlank()) {
+            detail.setPolygonWkt(polygonWkt);
+            detailMapper.updateById(detail);
+        }
+        return R.ok("边界修正成功", detail);
+    }
+
+    @Operation(summary = "批量修正地块受灾边界")
+    @PutMapping("/mission/{missionId}/boundaries")
+    public R<Void> batchUpdateBoundaries(
+            @PathVariable Long missionId,
+            @RequestBody List<Map<String, Object>> boundaries) {
+        for (Map<String, Object> item : boundaries) {
+            Object idObj = item.get("detailId");
+            Object wktObj = item.get("polygonWkt");
+            if (idObj != null && wktObj != null) {
+                AssessDetail detail = detailMapper.selectById(Long.valueOf(idObj.toString()));
+                if (detail != null) {
+                    detail.setPolygonWkt(wktObj.toString());
+                    detailMapper.updateById(detail);
+                }
+            }
+        }
+        return R.ok("批量边界修正成功");
+    }
 
     @Operation(summary = "创建定损任务（一键智能定损）")
     @PostMapping("/mission")

@@ -149,7 +149,7 @@ import { reactive, ref, nextTick, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElNotification } from 'element-plus'
 import { UploadFilled, PictureFilled, Document } from '@element-plus/icons-vue'
-import { uploadImage } from '@/api/image'
+import { uploadImage, chunkUploadFile } from '@/api/image'
 import { listMission } from '@/api/assess'
 
 const router = useRouter()
@@ -202,12 +202,12 @@ async function startUpload() {
     const item = uploadList.value[i]
     item.status = 'uploading'
     try {
-      await uploadImage({
+      const extraData = {
         ...form,
         missionName: (missions.value.find(m => m.id === form.missionId)?.missionName) || '',
-        file: item.raw,
         shootTime: form.shootTime ? new Date(form.shootTime).toISOString() : null
-      }, (evt) => {
+      }
+      await chunkUploadFile(item.raw, extraData, (evt) => {
         item.percent = Math.floor((evt.loaded / evt.total) * 100)
       })
       item.status = 'success'

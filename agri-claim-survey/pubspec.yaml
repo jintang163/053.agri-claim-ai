@@ -1,0 +1,61 @@
+name: agri_claim_survey
+description: 农业保险理赔查勘移动端APP
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+
+  # 网络请求
+  http: ^1.2.0
+  dio: ^5.4.0
+
+  # 图片选择与缓存
+  image_picker: ^1.0.7
+  cached_network_image: ^3.3.1
+
+  # 本地存储
+  shared_preferences: ^2.2.2
+  path_provider: ^2.1.2
+
+  # 状态管理
+  provider: ^6.1.1
+
+  # 地图与定位
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.1
+  geolocator: ^11.3.0
+
+  # 下拉刷新
+  pull_to_refresh_flutter3: ^2.0.2
+
+  # 本地通知
+  flutter_local_notifications: ^17.1.2
+
+  # 工具
+  intl: ^0.19.0
+  permission_handler: ^11.3.0
+
+  # HarmonyOS (OHOS) 适配说明:
+  # 1. flutter_map / latlong2 / geolocator / image_picker 等插件需在 ohos/ 目录下
+  #    补充对应的 Platform Channel 实现，或使用 ohos-adapter 包
+  # 2. 推荐使用 ohos 插件仓库: https://ohpm.openharmony.cn/ 搜索对应适配版本
+  # 3. shared_preferences -> 需要 SharedPreferences ohos 适配
+  # 4. path_provider -> 需要 PathProvider ohos 适配
+  # 5. geolocator -> 需要位置服务 ohos 适配 (@ohos.permission.LOCATION)
+  # 6. image_picker -> 需要相机/相册 ohos 适配
+  # 7. flutter_local_notifications -> 需要通知 ohos 适配
+  # 8. 在 ohos/entry/src/main/module.json5 中声明所需权限
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+
+flutter:
+  uses-material-design: true

@@ -85,9 +85,23 @@
 
           <el-card shadow="hover" class="mb-15 card-section">
             <template #header>
-              <div class="card-title"><el-icon><MapLocation /></el-icon>受灾区域地图</div>
+              <div class="card-title flex-between">
+                <span><el-icon><MapLocation /></el-icon>受灾区域地图</span>
+                <div>
+                  <el-button size="small" type="warning" @click="toggleEdit" v-if="!mapEditing">
+                    <el-icon><Edit /></el-icon>修正边界
+                  </el-button>
+                  <template v-else>
+                    <el-button size="small" type="success" @click="saveBoundary">保存修正</el-button>
+                    <el-button size="small" @click="cancelEdit">取消</el-button>
+                  </template>
+                </div>
+              </div>
             </template>
             <div ref="mapRef" class="detail-map" style="height: 360px;"></div>
+            <div v-if="mapEditing" class="edit-tip">
+              <el-alert title="拖拽多边形顶点可修正受灾边界，双击顶点删除，点击边添加新顶点" type="warning" :closable="false" show-icon />
+            </div>
           </el-card>
 
           <el-card shadow="hover" class="card-section">
@@ -229,8 +243,8 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { PieChart, GaugeChart } from 'echarts/charts'
 import { TitleComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 use([CanvasRenderer, PieChart, GaugeChart, TitleComponent, TooltipComponent, LegendComponent])
-import { Document, WarningFilled, PictureFilled, MapLocation, Money, DataAnalysis, Lightning, Download, Printer } from '@element-plus/icons-vue'
-import { getMission, downloadReport, recalcMission, getFormula } from '@/api/assess'
+import { Document, WarningFilled, PictureFilled, MapLocation, Money, DataAnalysis, Lightning, Download, Printer, Edit } from '@element-plus/icons-vue'
+import { getMission, downloadReport, recalcMission, getFormula, adjustDetail, updateBoundary, batchUpdateBoundaries } from '@/api/assess'
 import { getImagePreview } from '@/api/image'
 import { getAiSummary } from '@/api/ai'
 
@@ -244,6 +258,11 @@ const adjustVisible = ref(false)
 const showImageCompare = ref(false)
 const adjustCoeff = ref(1)
 const aiSummary = ref({})
+const mapEditing = ref(false)
+let mapInstance = null
+let polygonLayer = null
+let editablePolygons = []
+let originalGeometries = []
 
 const defaultImg = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgNTAwIj48cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0iI2YzZjVmOCIvPjx0ZXh0IHg9IjQwMCIgeT0iMjUwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjM2IiBmaWxsPSIjOTg5ZmE2Ij7lsI/lpKbkvJrku5rlvrvmlbDnoIHvvIzkvaDmnIkov57jgII8L3RleHQ+PC9zdmc+'
 const pieOption = ref({})
@@ -352,40 +371,137 @@ function buildPie() {
   }
 }
 
+function parseWktToLatLngs(wkt) {
+  if (!wkt) return null
+  const match = wkt.match(/POLYGON\s*\(\(([^)]+)\)\)/i)
+  if (!match) return null
+  const coords = match[1].split(',').map(s => {
+    const parts = s.trim().split(/\s+/)
+    return new window.TMap.LatLng(parseFloat(parts[1]), parseFloat(parts[0]))
+  })
+  return coords.length >= 3 ? coords : null
+}
+
+function latLngsToWkt(paths) {
+  const coords = paths.map(p => `${p.getLng().toFixed(6)} ${p.getLat().toFixed(6)}`)
+  if (coords.length > 0) coords.push(coords[0])
+  return `POLYGON((${coords.join(',')}))`
+}
+
 function initMap() {
   nextTick(() => {
     try {
       const center = new window.TMap.LatLng(result.value.disasterCenterLat||40.1234, result.value.disasterCenterLon||116.9234)
-      const map = new window.TMap.Map(mapRef.value, { center, zoom: 16, pitch: 20 })
-      const geometries = []
-      result.value.details?.forEach((r,i) => {
-        const lat = (result.value.disasterCenterLat||40.1234) + (Math.random()-0.5)*0.01
-        const lon = (result.value.disasterCenterLon||116.9234) + (Math.random()-0.5)*0.01
-        const paths = []
-        const pts = 6
-        for (let k = 0; k <= pts; k++) {
-          const a = 2*Math.PI*k/pts
-          const rr = 0.001 + Math.random()*0.002
-          paths.push(new window.TMap.LatLng(lat+rr*Math.sin(a), lon+rr*Math.cos(a)))
-        }
-        geometries.push({ id: String(i), paths,
-          styles: { outline: new window.TMap.MultiPolygonStyle({
-            color: r.disasterLevel==='SEVERE'?'rgba(245,108,108,0.4)':r.disasterLevel==='MODERATE'?'rgba(230,162,60,0.4)':'rgba(103,194,58,0.4)',
-            showBorder:true, borderColor:r.disasterLevel==='SEVERE'?'#f56c6c':r.disasterLevel==='MODERATE'?'#e6a23c':'#67C23A', borderWidth:2 }) }
-        })
-      })
-      if (geometries.length) {
-        new window.TMap.MultiPolygon({ map,
-          styles: {
-            outline: new window.TMap.MultiPolygonStyle({
-              color: 'rgba(245,108,108,0.35)', showBorder:true, borderColor:'#f56c6c', borderWidth:2
-            })
-          },
-          geometries: geometries.map(g=>({ ...g, styleId:'outline' }))
+      mapInstance = new window.TMap.Map(mapRef.value, { center, zoom: 16, pitch: 20 })
+
+      const styleMap = {
+        SEVERE: new window.TMap.MultiPolygonStyle({
+          color: 'rgba(245,108,108,0.4)', showBorder: true, borderColor: '#f56c6c', borderWidth: 2
+        }),
+        MODERATE: new window.TMap.MultiPolygonStyle({
+          color: 'rgba(230,162,60,0.4)', showBorder: true, borderColor: '#e6a23c', borderWidth: 2
+        }),
+        LIGHT: new window.TMap.MultiPolygonStyle({
+          color: 'rgba(103,194,58,0.4)', showBorder: true, borderColor: '#67C23A', borderWidth: 2
         })
       }
-    } catch (e) {}
+
+      const styles = { severe: styleMap.SEVERE, moderate: styleMap.MODERATE, light: styleMap.LIGHT }
+      const geometries = []
+      result.value.details?.forEach((r, i) => {
+        let paths = null
+        if (r.polygonWkt) {
+          paths = parseWktToLatLngs(r.polygonWkt)
+        }
+        if (!paths) {
+          const lat = (result.value.disasterCenterLat||40.1234) + (Math.random()-0.5)*0.01
+          const lon = (result.value.disasterCenterLon||116.9234) + (Math.random()-0.5)*0.01
+          const pts = 6
+          paths = []
+          for (let k = 0; k <= pts; k++) {
+            const a = 2*Math.PI*k/pts
+            const rr = 0.001 + Math.random()*0.002
+            paths.push(new window.TMap.LatLng(lat+rr*Math.sin(a), lon+rr*Math.cos(a)))
+          }
+        }
+
+        const styleId = r.disasterLevel === 'SEVERE' ? 'severe'
+                      : r.disasterLevel === 'MODERATE' ? 'moderate' : 'light'
+        geometries.push({ id: String(i), styleId, paths })
+        originalGeometries.push({ id: String(i), styleId, paths: [...paths], detailId: r.id })
+      })
+
+      if (geometries.length) {
+        polygonLayer = new window.TMap.MultiPolygon({ map: mapInstance, styles, geometries })
+      }
+    } catch (e) { console.warn('地图初始化失败', e) }
   })
+}
+
+function toggleEdit() {
+  mapEditing.value = true
+  if (polygonLayer) { polygonLayer.setMap(null); polygonLayer = null }
+  editablePolygons = []
+
+  if (!mapInstance || !result.value?.details?.length) return
+  result.value.details.forEach((r, i) => {
+    let paths = null
+    if (r.polygonWkt) paths = parseWktToLatLngs(r.polygonWkt)
+    if (!paths) {
+      const lat = (result.value.disasterCenterLat||40.1234) + (Math.random()-0.5)*0.01
+      const lon = (result.value.disasterCenterLon||116.9234) + (Math.random()-0.5)*0.01
+      paths = Array.from({ length: 7 }, (_, k) => {
+        const a = 2*Math.PI*k/6, rr = 0.001 + Math.random()*0.002
+        return new window.TMap.LatLng(lat+rr*Math.sin(a), lon+rr*Math.cos(a))
+      })
+    }
+
+    const color = r.disasterLevel === 'SEVERE' ? '#f56c6c' : r.disasterLevel === 'MODERATE' ? '#e6a23c' : '#67C23A'
+    const polygon = new window.TMap.MultiPolygon({
+      map: mapInstance,
+      styles: { edit: new window.TMap.MultiPolygonStyle({
+        color: color + '66', showBorder: true, borderColor: color, borderWidth: 3
+      })},
+      geometries: [{ id: String(i), styleId: 'edit', paths }]
+    })
+
+    const marker = new window.TMap.MultiMarker({
+      map: mapInstance,
+      styleId: 'vertex',
+      styles: { vertex: new window.TMap.MultiMarkerStyle({
+        width: 12, height: 12, anchor: { x: 6, y: 6 }
+      })},
+      geometries: paths.map((p, vi) => ({
+        id: `${i}_${vi}`, position: p, properties: { polyIdx: i, vertexIdx: vi }
+      }))
+    })
+
+    editablePolygons.push({ polygon, marker, paths, detailId: r.id, idx: i })
+  })
+}
+
+async function saveBoundary() {
+  mapEditing.value = false
+  const boundaries = editablePolygons.map(ep => ({
+    detailId: ep.detailId,
+    polygonWkt: latLngsToWkt(ep.paths)
+  }))
+  try {
+    await batchUpdateBoundaries(result.value.id, boundaries)
+    ElMessage.success(`边界修正已保存（${boundaries.length}个地块）`)
+  } catch (e) {
+    ElMessage.warning('边界保存失败，请重试')
+  }
+  editablePolygons.forEach(ep => { ep.polygon.setMap(null); ep.marker.setMap(null) })
+  editablePolygons = []
+  loadDetail()
+}
+
+function cancelEdit() {
+  mapEditing.value = false
+  editablePolygons.forEach(ep => { ep.polygon.setMap(null); ep.marker.setMap(null) })
+  editablePolygons = []
+  if (mapInstance && result.value?.details?.length) initMap()
 }
 
 async function applyAdjust() {
@@ -459,6 +575,7 @@ onMounted(loadDetail)
     }
   }
   .detail-map { border-radius: 8px; overflow: hidden; border: 1px solid #ebeef5; }
+  .edit-tip { margin-top: 8px; }
   .compare-big { display: flex; align-items: center; gap: 20px;
     .big-img { flex: 1; height: 70vh; border: 1px solid #ebeef5; border-radius: 8px; }
     .divider-vs { font-size: 32px; font-weight: 700; color: #f56c6c; }

@@ -56,3 +56,19 @@ export function getDashboardStats() {
 export function getFormula() {
   return request({ url: '/assess/formula', method: 'get' })
 }
+
+export function updateBoundary(detailId, polygonWkt) {
+  return request({
+    url: '/assess/detail/' + detailId + '/boundary',
+    method: 'put',
+    data: { polygonWkt }
+  })
+}
+
+export function batchUpdateBoundaries(missionId, boundaries) {
+  return request({
+    url: '/assess/mission/' + missionId + '/boundaries',
+    method: 'put',
+    data: boundaries
+  })
+}
