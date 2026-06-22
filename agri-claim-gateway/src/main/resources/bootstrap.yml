@@ -1,0 +1,108 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: agri-claim-gateway
+  profiles:
+    active: dev
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+        namespace: agri-claim-dev
+        group: AGRI_CLAIM_GROUP
+      config:
+        server-addr: 127.0.0.1:8848
+        namespace: agri-claim-dev
+        group: AGRI_CLAIM_GROUP
+        file-extension: yaml
+        shared-configs:
+          - data-id: agri-claim-common.yaml
+            group: AGRI_CLAIM_GROUP
+            refresh: true
+    sentinel:
+      transport:
+        dashboard: 127.0.0.1:8858
+        port: 8719
+      eager: true
+    gateway:
+      discovery:
+        locator:
+          enabled: false
+          lower-case-service-id: true
+      routes:
+        - id: agri-claim-auth
+          uri: lb://agri-claim-auth
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - StripPrefix=2
+
+        - id: agri-claim-system
+          uri: lb://agri-claim-system
+          predicates:
+            - Path=/api/system/**
+          filters:
+            - StripPrefix=2
+
+        - id: agri-claim-image
+          uri: lb://agri-claim-image
+          predicates:
+            - Path=/api/image/**
+          filters:
+            - StripPrefix=2
+
+        - id: agri-claim-ai
+          uri: lb://agri-claim-ai
+          predicates:
+            - Path=/api/ai/**
+          filters:
+            - StripPrefix=2
+
+        - id: agri-claim-assess
+          uri: lb://agri-claim-assess
+          predicates:
+            - Path=/api/assess/**
+          filters:
+            - StripPrefix=2
+
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: '*'
+            allowedMethods: '*'
+            allowedHeaders: '*'
+            allowCredentials: true
+            maxAge: 3600
+      httpclient:
+        connect-timeout: 30000
+        response-timeout: 120s
+
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      password:
+      database: 0
+      timeout: 10s
+      lettuce:
+        pool:
+          max-active: 32
+          max-wait: 5000ms
+          max-idle: 16
+          min-idle: 4
+
+gateway:
+  whitelist:
+    - /auth/login
+    - /auth/register
+    - /auth/captcha
+    - /auth/logout
+    - /image/view/**
+    - /image/download/**
+
+logging:
+  level:
+    org.springframework.cloud.gateway: info
+    com.agri.claim: debug
